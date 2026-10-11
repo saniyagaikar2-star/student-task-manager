@@ -1,0 +1,158 @@
+
+const form = document.getElementById("taskForm");
+const taskInput = document.getElementById("taskInput");
+const subjectInput = document.getElementById("subjectInput");
+const dateInput = document.getElementById("dateInput");
+const priorityInput = document.getElementById("priorityInput");
+const taskList = document.getElementById("taskList");
+const filter = document.getElementById("filter");
+
+let tasks = [];
+
+try {
+  const saved = JSON.parse(
+    localStorage.getItem("studyPlannerTasks") || "[]"
+  );
+
+  if (Array.isArray(saved)) {
+    tasks = saved.filter(task =>
+      task &&
+      typeof task.id === "string" &&
+      typeof task.title === "string" &&
+      typeof task.completed === "boolean"
+    );
+  }
+} catch {
+  tasks = [];
+}
+
+function saveTasks() {
+  try {
+    localStorage.setItem(
+      "studyPlannerTasks",
+      JSON.stringify(tasks)
+    );
+  } catch {
+    alert("Could not save tasks in this browser.");
+  }
+}
+
+function updateStats() {
+  document.getElementById("total").textContent = tasks.length;
+  document.getElementById("pending").textContent =
+    tasks.filter(task => !task.completed).length;
+  document.getElementById("completed").textContent =
+    tasks.filter(task => task.completed).length;
+}
+
+function makeElement(tag, className, text) {
+  const el = document.createElement(tag);
+  el.className = className;
+  el.textContent = text;
+  return el;
+}
+
+function renderTasks() {
+  taskList.replaceChildren();
+
+  const visible = tasks.filter(task => {
+    if (filter.value === "Pending") return !task.completed;
+    if (filter.value === "Completed") return task.completed;
+    return true;
+  });
+
+  if (visible.length === 0) {
+    taskList.append(makeElement(
+      "p", "empty", "No tasks here. Add a task to begin! ✨"
+    ));
+  }
+
+  visible.forEach(task => {
+    const card = makeElement("div", "task", "");
+    const top = makeElement("div", "task-top", "");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = task.completed;
+    checkbox.setAttribute("aria-label", "Mark task completed");
+
+    checkbox.addEventListener("change", () => {
+      task.completed = checkbox.checked;
+      saveTasks();
+      renderTasks();
+    });
+
+    const info = makeElement(
+      "div", "task-info" + (task.completed ? " done" : ""), ""
+    );
+
+    info.append(makeElement("h3", "", task.title));
+
+    if (task.subject) {
+      info.append(makeElement("p", "", "📘 " + task.subject));
+    }
+
+    if (task.deadline) {
+      info.append(makeElement("p", "", "📅 " + task.deadline));
+    }
+
+    const priority = makeElement("span", "priority", task.priority);
+    top.append(checkbox, info, priority);
+
+    const actions = makeElement("div", "task-actions", "");
+
+    const toggle = makeElement(
+      "button", "", task.completed ? "Undo" : "Complete"
+    );
+
+    toggle.addEventListener("click", () => {
+      task.completed = !task.completed;
+      saveTasks();
+      renderTasks();
+    });
+
+    const remove = makeElement("button", "delete", "Delete");
+
+    remove.addEventListener("click", () => {
+      if (confirm("Delete this task?")) {
+        tasks = tasks.filter(item => item.id !== task.id);
+        saveTasks();
+        renderTasks();
+      }
+    });
+
+    actions.append(toggle, remove);
+    card.append(top, actions);
+    taskList.append(card);
+  });
+
+  updateStats();
+}
+
+form.addEventListener("submit", event => {
+  event.preventDefault();
+
+  const title = taskInput.value.trim();
+
+  if (!title) {
+    alert("Please enter a task name.");
+    return;
+  }
+
+  tasks.unshift({
+    id: Date.now().toString() + Math.random().toString(36).slice(2),
+    title,
+    subject: subjectInput.value.trim(),
+    deadline: dateInput.value,
+    priority: priorityInput.value,
+    completed: false
+  });
+
+  saveTasks();
+  form.reset();
+  renderTasks();
+});
+
+filter.addEventListener("change", renderTasks);
+
+renderTasks();
